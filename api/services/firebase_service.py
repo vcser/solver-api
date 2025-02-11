@@ -1,16 +1,18 @@
 import firebase_admin
 from firebase_admin import credentials, firestore
+from api.config import Settings
 
 class FirebaseService:
-    def __init__(self, cred_path: str, collection_name: str):
+    def __init__(self, collection_name: str):
         """
         Inicializa la conexión con Firestore.
 
         :param cred_path: Ruta al archivo de credenciales de Firebase.
         :param collection_name: Nombre de la colección en Firestore.
         """
+        self.cred_path = Settings.ROOT_DIR / "creds.json"
         if not firebase_admin._apps:
-            cred = credentials.Certificate(cred_path)
+            cred = credentials.Certificate(self.cred_path)
             firebase_admin.initialize_app(cred)
 
         self.db = firestore.client()

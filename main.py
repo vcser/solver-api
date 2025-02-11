@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from api.endpoints import geography, prediction
+from api.endpoints import prediction
 from api.config import settings
 
 app = FastAPI(

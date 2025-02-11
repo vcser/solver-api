@@ -2,3 +2,4 @@ bin/*
 .venv/*
 .env
 data/*
+creds.json

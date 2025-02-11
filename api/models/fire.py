@@ -1,25 +1,31 @@
-from pydantic import BaseModel, Field
-from typing import List, Dict
-from datetime import datetime
+from typing import Optional
 from .geo import Geography
 from .weather import Meteorology
+from .data import RequestDataPoint
 
-class Incendio(BaseModel):
-    id: int
-    lat: float
-    lon: float
-    humidity: int
-    windSpeed: float
-    windDirection: int
-    temperature: float
-    slope: float
-    vplFactor: float
-    timestamp: datetime
-    rodalValue: int
-    fuelModel: str
-    cityDistanceMeters: float
-    builtLineLength: float
-    incompatibilities: List[str]
+class Incendio(RequestDataPoint, Geography, Meteorology):
+    # id: int
+    # lat: float
+    # lon: float
+    # humidity: int
+    # windSpeed: float
+    # windDirection: int
+    # temperature: float
+    # slope: float
+    # vplFactor: float
+    # timestamp: datetime
+    # rodalValue: int
+    # fuelModel: str
+    # cityDistanceMeters: float
+    builtLineLength: Optional[float] = 0
+    # incompatibilities: List[str]
+
+    def __init__(self, point: RequestDataPoint):
+        self.id = point.id
+        self.lat = point.lat
+        self.lon = point.lon
+        self.timestamp = point.timestamp
+        self.incompatibilities = point.incompatibilities
 
     def update_from_geography(self, geo: Geography):
         self.slope = geo.slope

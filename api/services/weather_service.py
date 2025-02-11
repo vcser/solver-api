@@ -1,8 +1,7 @@
-import aiohttp
 from typing import List
-from api.models.geo import GeoPoint
 from api.models.weather import Meteorology
-
+from api.models.data import RequestData
+import aiohttp
 
 class WeatherService:
     _instance = None  # Variable para almacenar la única instancia
@@ -13,7 +12,7 @@ class WeatherService:
         return cls._instance
 
     @classmethod
-    async def fetch_meteorology(cls, coords: List[GeoPoint]) -> List[Meteorology]:
+    async def fetch_meteorology(cls, coords: RequestData) -> List[Meteorology]:
         lats = ",".join(str(coord['lat']) for coord in coords)
         longs = ",".join(str(coord['lon']) for coord in coords)
 
@@ -24,11 +23,9 @@ class WeatherService:
                 json = await response.json()
                 json = [json] if not isinstance(json, list) else json
 
-                data = [{
-                    'humidity': d['current']['relative_humidity_2m'],
-                    'velocity': d['current']['wind_speed_10m'],
-                    'temperature': d['current']['temperature_2m'],
-                    'direction': d['current']['wind_direction_10m']
-                } for d in json]
+                data = [Meteorology(humidity=d['current']['relative_humidity_2m'],
+                                    velocity=d['current']['wind_speed_10m'],
+                                    temperature=d['current']['temperature_2m'],
+                                    direction=d['current']['wind_direction_10m']) for d in json]
 
                 return data

@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from pathlib import Path
 
 class Settings(BaseModel):
     HOST: str = "0.0.0.0"
@@ -14,5 +15,6 @@ class Settings(BaseModel):
     CRS_TRANSFORMATIONS: dict = {
         "default": ("EPSG:4326", "EPSG:32718")
     }
+    ROOT_DIR: str = Path(__file__).resolve().parent.parent
 
 settings = Settings()
