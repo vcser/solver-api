@@ -5,7 +5,7 @@ from datetime import datetime
 import subprocess
 import json
 import traceback
-from starlette.middleware.cors import CORSMiddleware
+from fastapi.middleware.cors import CORSMiddleware
 import shapefile
 from geopy.distance import geodesic
 import rasterio

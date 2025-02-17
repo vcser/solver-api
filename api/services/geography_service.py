@@ -6,9 +6,12 @@ from geopy.distance import geodesic
 from fastapi import HTTPException
 import logging
 from api.config import settings
-from api.models.geo import Geography
+from api.models.geography import Geography
 from api.models.data import RequestDataPoint, RequestData
+from api.models.resource import Resource
+from api.models.fire import Fire
 import asyncio
+from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +39,7 @@ VPL_FACTOR_MAPPING = {
 }
 
 
-class GeoService:
+class GeographyService:
     _instance = None
     _rasters = {}
     _shapefiles = {}
@@ -48,22 +51,24 @@ class GeoService:
             cls._instance._load_shapefiles()
         return cls._instance
 
-    def _load_rasters(self):
+    @classmethod
+    def _load_rasters(cls):
         for name, path in settings.RASTER_PATHS.items():
             try:
-                self._rasters[name] = rasterio.open(path)
+                cls._rasters[name] = rasterio.open(path)
                 logger.info(f"Loaded raster: {name}")
             except Exception as e:
                 logger.error(f"Error loading raster {name}: {str(e)}")
                 raise HTTPException(500, detail=f"Error loading raster {name}")
 
-    def _load_shapefiles(self):
+    @classmethod
+    def _load_shapefiles(cls):
         for name, path in settings.SHAPEFILE_PATHS.items():
             try:
                 sf = shapefile.Reader(path)
                 features = []
                 transformer = Transformer.from_crs(
-                    *settings.CRS_TRANSFORMATIONS["default"])
+                    *settings.CRS_TRANSFORMATIONS["default"], always_xy=True)
 
                 for record, shp in zip(sf.records(), sf.shapes()):
                     polygon = shape(shp)
@@ -75,16 +80,17 @@ class GeoService:
                         "geometry": polygon
                     })
 
-                self._shapefiles[name] = features
+                cls._shapefiles[name] = features
                 logger.info(f"Loaded shapefile: {name}")
             except Exception as e:
                 logger.error(f"Error loading shapefile {name}: {str(e)}")
                 raise HTTPException(
                     500, detail=f"Error loading shapefile {name}")
 
-    async def get_raster_value(self, raster_name: str, point: RequestDataPoint):
+    @classmethod
+    async def get_raster_value(cls, raster_name: str, point: RequestDataPoint):
         try:
-            src = self._rasters[raster_name]
+            src = cls._rasters[raster_name]
             transformer = Transformer.from_crs(
                 "EPSG:4326", src.crs, always_xy=True)
             x, y = transformer.transform(point.lon, point.lat)
@@ -94,9 +100,11 @@ class GeoService:
             logger.error(f"Raster error: {str(e)}")
             raise HTTPException(500, detail="Error processing raster data")
 
-    async def nearest_feature(self, shapefile_name: str, point: RequestDataPoint):
+    @classmethod
+    def nearest_feature(cls, shapefile_name: str, point: RequestDataPoint):
+        # logger.info(f"FINDING NEAREST {shapefile_name} to {point}")
         try:
-            features = self._shapefiles[shapefile_name]
+            features = cls._shapefiles[shapefile_name]
             user_point = Point(point.lon, point.lat)
 
             for feature in features:
@@ -112,27 +120,26 @@ class GeoService:
             logger.error(f"Shapefile error: {str(e)}")
             raise HTTPException(500, detail="Error processing spatial data")
 
-    async def get_point_geography(self, point: RequestDataPoint) -> Geography:
+    @classmethod
+    async def get_point_geography(cls, point: RequestDataPoint) -> Geography:
         try:
             # Ejecutar operaciones en paralelo
             slope, fuel_value = await asyncio.gather(
-                self.get_raster_value("slope", point),
-                self.get_raster_value("fuel_model", point)
+                cls.get_raster_value("slope", point),
+                cls.get_raster_value("fuel_model", point)
             )
 
             # Obtener el modelo de combustible
             fuel_model = FUEL_MODEL_MAPPING.get(int(fuel_value), "Unknown")
 
             # Obtener el área poblada más cercana
-            populated_area = await self.nearest_feature("cities", point)
+            populated_area = cls.nearest_feature("cities", point)
 
             return Geography(
-                lat=point.lat,
-                lon=point.lon,
                 slope=float(slope),
                 fuelModel=fuel_model,
                 vplFactor=VPL_FACTOR_MAPPING.get(fuel_model, 0.0),
-                nearest_populated_area=populated_area
+                cityDistanceMeters=populated_area["distance"]
             )
         except HTTPException:
             raise
@@ -142,7 +149,27 @@ class GeoService:
                 detail=f"Error processing geography data: {str(e)}"
             )
 
-    async def get_geography(self, data: RequestData) -> list[Geography]:
+    @classmethod
+    async def get_geography(cls, data: RequestData) -> list[Geography]:
         return await asyncio.gather(
-            *[self.get_point_geography(fire) for fire in data.fires]
+            *[cls.get_point_geography(fire) for fire in data.fires]
         )
+
+    @classmethod
+    async def get_ETAs(cls, start_time: datetime, resources: list[Resource], fires: list[Fire]) -> list[list[str]]:
+        async def calculate_eta(resource: Resource, fire: Fire) -> str:
+            average_speed_kmh = 60  # Velocidad promedio en km/h
+            distance_km = geodesic(
+                (resource.lat, resource.lon), (fire.lat, fire.lon)).kilometers
+            time_hours = distance_km / average_speed_kmh
+            arrive_time = start_time + timedelta(hours=time_hours)
+            return arrive_time.isoformat()
+
+        ETAs = []
+        ETAs = await asyncio.gather(
+            *[asyncio.gather(
+                *[calculate_eta(resource, fire) for fire in fires]
+            ) for resource in resources]
+        )
+
+        return ETAs

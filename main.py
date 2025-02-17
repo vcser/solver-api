@@ -8,8 +8,6 @@ app = FastAPI(
     description="API for wildfire prediction and analysis"
 )
 
-# Include routers
-# app.include_router(geography.router)
 app.include_router(prediction.router)
 
 if __name__ == "__main__":

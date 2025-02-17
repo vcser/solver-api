@@ -9,6 +9,7 @@ dependencies = [
     "fastapi>=0.115.8",
     "firebase-admin>=6.6.0",
     "geopy>=2.4.1",
+    "pydantic-settings>=2.7.1",
     "pyproj>=3.6.1",
     "pyshp>=2.3.1",
     "rasterio>=1.4.3",
